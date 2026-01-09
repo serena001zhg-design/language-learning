@@ -1,0 +1,6 @@
+flask
+pymongo
+gtts
+requests
+boto3
+gunicorn
