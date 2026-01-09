@@ -59,6 +59,8 @@
             font-weight: 600;
             box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
             transition: all 0.3s ease;
+            cursor: pointer;
+            border: none;
         }
 
         .history-btn:hover {
@@ -253,10 +255,125 @@
         @keyframes spin {
             to { transform: rotate(360deg); }
         }
+
+        /* 历史记录弹窗样式 */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+
+        .modal.show {
+            display: flex;
+        }
+
+        .modal-content {
+            background: white;
+            border-radius: 24px;
+            padding: 30px;
+            width: 90%;
+            max-width: 500px;
+            max-height: 70vh;
+            overflow-y: auto;
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .modal-header h2 {
+            color: #333;
+        }
+
+        .close-btn {
+            background: none;
+            border: none;
+            font-size: 1.5em;
+            cursor: pointer;
+            color: #888;
+        }
+
+        .close-btn:hover {
+            color: #333;
+        }
+
+        .history-item {
+            background: #f8f9fa;
+            border-radius: 12px;
+            padding: 15px;
+            margin-bottom: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .history-text {
+            flex: 1;
+        }
+
+        .history-original {
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 5px;
+        }
+
+        .history-translated {
+            color: #667eea;
+        }
+
+        .history-time {
+            font-size: 0.8em;
+            color: #aaa;
+            margin-top: 5px;
+        }
+
+        .delete-btn {
+            background: #ff6b6b;
+            color: white;
+            border: none;
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            cursor: pointer;
+            font-size: 0.9em;
+        }
+
+        .delete-btn:hover {
+            background: #ee5a5a;
+        }
+
+        .empty-history {
+            text-align: center;
+            color: #888;
+            padding: 40px;
+        }
     </style>
 </head>
 <body>
-    <a href="/history" class="history-btn">📚 历史记录</a>
+    <button class="history-btn" onclick="openHistory()">📚 历史记录</button>
+
+    <!-- 历史记录弹窗 -->
+    <div class="modal" id="history-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>📚 历史记录</h2>
+                <button class="close-btn" onclick="closeHistory()">×</button>
+            </div>
+            <div id="history-list">
+                <div class="empty-history">加载中...</div>
+            </div>
+        </div>
+    </div>
 
     <div class="container">
         <div class="header">
@@ -315,6 +432,95 @@
     </div>
 
     <script>
+        // Cloudflare Worker API 地址
+        const HISTORY_API = 'https://learning-history-api.serena001zhg.workers.dev';
+
+        // 保存历史记录到 Cloudflare
+        async function saveToHistory(original, translated) {
+            try {
+                await fetch(HISTORY_API + '/save', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        original: original,
+                        translated: translated
+                    })
+                });
+            } catch (error) {
+                console.log('保存历史记录失败', error);
+            }
+        }
+
+        // 获取历史记录
+        async function getHistory() {
+            try {
+                const response = await fetch(HISTORY_API + '/history');
+                return await response.json();
+            } catch (error) {
+                console.log('获取历史记录失败', error);
+                return [];
+            }
+        }
+
+        // 删除历史记录
+        async function deleteHistory(id) {
+            try {
+                await fetch(HISTORY_API + '/delete/' + id, {
+                    method: 'DELETE'
+                });
+                loadHistory(); // 重新加载
+            } catch (error) {
+                console.log('删除失败', error);
+            }
+        }
+
+        // 打开历史记录弹窗
+        function openHistory() {
+            document.getElementById('history-modal').classList.add('show');
+            loadHistory();
+        }
+
+        // 关闭历史记录弹窗
+        function closeHistory() {
+            document.getElementById('history-modal').classList.remove('show');
+        }
+
+        // 加载并显示历史记录
+        async function loadHistory() {
+            const historyList = document.getElementById('history-list');
+            historyList.innerHTML = '<div class="empty-history">加载中...</div>';
+            
+            const records = await getHistory();
+            
+            if (records.length === 0) {
+                historyList.innerHTML = '<div class="empty-history">暂无历史记录</div>';
+                return;
+            }
+
+            historyList.innerHTML = '';
+            records.forEach(function(record) {
+                const time = new Date(record.time).toLocaleString('zh-CN');
+                const div = document.createElement('div');
+                div.className = 'history-item';
+                div.innerHTML = `
+                    <div class="history-text">
+                        <div class="history-original">${record.original}</div>
+                        <div class="history-translated">${record.translated}</div>
+                        <div class="history-time">${time}</div>
+                    </div>
+                    <button class="delete-btn" onclick="deleteHistory(${record.id})">×</button>
+                `;
+                historyList.appendChild(div);
+            });
+        }
+
+        // 点击弹窗外部关闭
+        document.getElementById('history-modal').addEventListener('click', function(e) {
+            if (e.target === this) {
+                closeHistory();
+            }
+        });
+
         document.getElementById("native-input").addEventListener("keydown", function(event) {
             if (event.key === "Enter") {
                 event.preventDefault();
@@ -347,6 +553,9 @@
                     document.getElementById("target-output").value = data.translation;
                     document.getElementById("audio-player").src = data.audio;
                     document.getElementById("play-audio").classList.remove("hidden");
+
+                    // 保存到历史记录
+                    saveToHistory(text, data.translation);
 
                     // 显示单词列表
                     var wordListDiv = document.getElementById("word-list");
