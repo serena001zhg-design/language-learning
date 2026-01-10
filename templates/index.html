@@ -314,7 +314,7 @@
             margin-bottom: 10px;
             display: flex;
             justify-content: space-between;
-            align-items: center;
+            align-items: flex-start;
         }
 
         .history-text {
@@ -356,6 +356,46 @@
             text-align: center;
             color: #888;
             padding: 40px;
+        }
+
+        /* 历史记录中的单词样式 */
+        .history-words {
+            margin-top: 10px;
+            padding-top: 10px;
+            border-top: 1px dashed #ddd;
+        }
+
+        .history-word-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 5px 0;
+        }
+
+        .hw-word {
+            font-weight: 600;
+            color: #333;
+            min-width: 80px;
+        }
+
+        .hw-translation {
+            color: #888;
+            flex: 1;
+        }
+
+        .hw-audio-btn {
+            background: #667eea;
+            color: white;
+            border: none;
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            cursor: pointer;
+            font-size: 0.8em;
+        }
+
+        .hw-audio-btn:hover {
+            background: #5a6fd6;
         }
     </style>
 </head>
@@ -435,15 +475,16 @@
         // Cloudflare Worker API 地址
         const HISTORY_API = 'https://learning-history-api.serena001zhg.workers.dev';
 
-        // 保存历史记录到 Cloudflare
-        async function saveToHistory(original, translated) {
+        // 保存历史记录到 Cloudflare（包含单词分解）
+        async function saveToHistory(original, translated, words) {
             try {
                 await fetch(HISTORY_API + '/save', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({
                         original: original,
-                        translated: translated
+                        translated: translated,
+                        words: words
                     })
                 });
             } catch (error) {
@@ -502,10 +543,28 @@
                 const time = new Date(record.time).toLocaleString('zh-CN');
                 const div = document.createElement('div');
                 div.className = 'history-item';
+                
+                // 生成单词列表HTML
+                let wordsHtml = '';
+                if (record.words && record.words.length > 0) {
+                    wordsHtml = '<div class="history-words">';
+                    record.words.forEach(function(item) {
+                        wordsHtml += `
+                            <div class="history-word-item">
+                                <span class="hw-word">${item.word}</span>
+                                <span class="hw-translation">${item.translation}</span>
+                                <button class="hw-audio-btn" onclick="event.stopPropagation(); new Audio('${item.audio}').play()">🔊</button>
+                            </div>
+                        `;
+                    });
+                    wordsHtml += '</div>';
+                }
+                
                 div.innerHTML = `
                     <div class="history-text">
                         <div class="history-original">${record.original}</div>
                         <div class="history-translated">${record.translated}</div>
+                        ${wordsHtml}
                         <div class="history-time">${time}</div>
                     </div>
                     <button class="delete-btn" onclick="deleteHistory(${record.id})">×</button>
@@ -554,8 +613,8 @@
                     document.getElementById("audio-player").src = data.audio;
                     document.getElementById("play-audio").classList.remove("hidden");
 
-                    // 保存到历史记录
-                    saveToHistory(text, data.translation);
+                    // 保存到历史记录（包含单词分解）
+                    saveToHistory(text, data.translation, data.words);
 
                     // 显示单词列表
                     var wordListDiv = document.getElementById("word-list");
